@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000;
+    --ink: #e9eef8;
+    --muted: #8a93a8;
+    --glass: rgba(12, 16, 26, 0.72);
+    --edge: rgba(140, 180, 255, 0.16);
+    --accent: #7cc4ff;
+    --danger: #ff8a7a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden;
+    font: 14px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #sky { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .glass { background: var(--glass); border: 1px solid var(--edge); border-radius: 14px;
+    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 10px 40px rgba(0,0,0,.55); }
+  button { font: inherit; }
+
+  /* top bar */
+  header { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px;
+    padding: 18px 20px; z-index: 5; }
+  .brand { font-weight: 600; letter-spacing: .38em; font-size: 15px; }
+  .brand small { display: block; letter-spacing: .12em; font-weight: 400; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  header .sp { flex: 1; }
+  .chip { font-size: 11.5px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--edge); color: var(--muted);
+    background: rgba(255,255,255,.03); white-space: nowrap; text-decoration: none; }
+  a.chip, button.chip { cursor: pointer; color: var(--ink); }
+  a.chip:hover, button.chip:hover { background: rgba(255,255,255,.08); }
+  .chip.warn { color: #ffd45e; border-color: rgba(255,212,94,.35); }
+
+  /* conversation under the orb */
+  #talk { position: fixed; left: 50%; top: var(--talk-top, calc(50% + 120px)); transform: translateX(-50%); width: min(720px, calc(100% - 32px));
+    text-align: center; z-index: 3; pointer-events: none; }
+  #you { color: var(--muted); font-size: 13px; min-height: 20px; }
+  #reply { font-size: clamp(17px, 2.2vw, 21px); line-height: 1.5; margin-top: 6px; min-height: 30px; font-weight: 300;
+    text-shadow: 0 2px 18px #000; pointer-events: auto; max-height: 26vh; overflow-y: auto; }
+  #reply.error { color: var(--danger); font-size: 15px; }
+  #reply.thinking::after { content: "…"; animation: blink 1s steps(3) infinite; }
+
+  /* toast for teacher actions */
+  #toast { position: fixed; top: 76px; left: 50%; transform: translate(-50%, -8px); opacity: 0; z-index: 6;
+    padding: 8px 16px; font-size: 13px; transition: opacity .3s, transform .3s; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.error { color: var(--danger); }
+
+  /* agent card */
+  #agent { position: fixed; right: 18px; top: 76px; width: 380px; max-height: calc(100% - 230px); z-index: 6;
+    padding: 18px 20px; display: none; flex-direction: column; gap: 10px; }
+  #agent.show { display: flex; animation: rise .35s ease; }
+  #agent h2 { margin: 0; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  #agent .state { font-size: 16px; }
+  #agent .count { font-size: 44px; font-weight: 200; line-height: 1; color: #ffd45e; font-variant-numeric: tabular-nums; }
+  #agent pre { margin: 0; white-space: pre-wrap; font: 12px/1.5 ui-monospace, "JetBrains Mono", Menlo, monospace; color: #c7cfe0;
+    background: rgba(0,0,0,.35); border: 1px solid var(--edge); border-radius: 10px; padding: 10px 12px; overflow-y: auto; max-height: 34vh; }
+  #agent .meta { font-size: 12px; color: var(--muted); word-break: break-all; }
+  #agent .row { display: flex; gap: 8px; }
+  #agent button { all: unset; cursor: pointer; padding: 8px 14px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+  #agent #cancelAgent { background: #ff4d5e; color: #fff; }
+  #agent #closeAgent { color: var(--muted); }
+  #agent ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); max-height: 120px; overflow-y: auto; }
+
+  /* command help */
+  #help { position: fixed; left: 18px; top: 76px; width: 330px; max-height: calc(100% - 230px); overflow-y: auto; z-index: 6;
+    padding: 16px 18px; display: none; font-size: 13px; }
+  #help.show { display: block; animation: rise .3s ease; }
+  #help h3 { margin: 12px 0 6px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  #help h3:first-child { margin-top: 0; }
+  #help p { margin: 3px 0; }
+  #help q { color: var(--accent); quotes: "“" "”"; }
+
+  /* settings */
+  #settings { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, calc(100% - 32px));
+    max-height: calc(100% - 40px); overflow-y: auto; z-index: 9; padding: 22px 24px; display: none; }
+  #settings.show { display: block; animation: rise .3s ease; }
+  #settings h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+  #settings .intro { margin: 0 0 14px; color: #ffe39a; font-size: 13px; }
+  #settings .intro:empty { display: none; }
+  #settings label { display: block; margin: 14px 0 6px; font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+  #settings input, #settings select { width: 100%; background: rgba(0,0,0,.4); color: var(--ink); border: 1px solid var(--edge);
+    border-radius: 10px; padding: 10px 12px; font: inherit; outline: none; }
+  #settings input:focus, #settings select:focus, #settings textarea:focus { border-color: var(--accent); }
+  #settings textarea { width: 100%; min-height: 96px; resize: vertical; background: rgba(0,0,0,.4); color: var(--ink);
+    border: 1px solid var(--edge); border-radius: 10px; padding: 10px 12px; outline: none; box-sizing: border-box;
+    font: 13px/1.6 ui-monospace, "DejaVu Sans Mono", monospace; white-space: pre; overflow-x: auto; }
+  #settings textarea.masked { -webkit-text-security: disc; }
+  #settings .keyrow.tall .eye { align-self: flex-start; height: 38px; }
+  #settings .keyrow { display: flex; gap: 6px; }
+  #settings .eye { all: unset; cursor: pointer; padding: 0 10px; border-radius: 10px; border: 1px solid var(--edge); display: grid; place-items: center; }
+  #settings .hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+  #settings .hint a { color: var(--accent); }
+  #settings details { margin-top: 16px; }
+  #settings summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  #settings .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  #settings .row button { all: unset; cursor: pointer; padding: 9px 16px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+  #settings .row .primary { background: var(--accent); color: #04121f; }
+  #settings .row .ghost { border: 1px solid var(--edge); color: var(--ink); }
+  #settings .x { all: unset; cursor: pointer; position: absolute; top: 12px; right: 16px; font-size: 22px; color: var(--muted); }
+  #settings .badge { margin-left: 6px; font-size: 11px; padding: 2px 8px; border-radius: 999px; letter-spacing: 0; }
+  #settings .badge.on { background: rgba(94,255,168,.12); color: #7dffb8; }
+  #settings .badge.off { background: rgba(255,138,122,.12); color: var(--danger); }
+  #settings .msg { min-height: 20px; margin: 12px 0 0; font-size: 13px; }
+  #settings .msg.ok { color: #7dffb8; } #settings .msg.bad { color: var(--danger); }
+
+  /* chat bar */
+  #chat { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(720px, calc(100% - 32px)); z-index: 7; }
+  #status { display: flex; align-items: center; gap: 8px; margin: 0 0 8px 16px; font-size: 12.5px; color: var(--muted); min-height: 18px; text-shadow: 0 1px 6px #000; }
+  #status .dot { width: 8px; height: 8px; border-radius: 50%; background: #5d6478; flex: none; }
+  #status[data-mode="listening"] .dot { background: #34a0ff; box-shadow: 0 0 10px #34a0ff; animation: blink 1.1s ease-in-out infinite; }
+  #status[data-mode="thinking"] .dot { background: #ffc42e; box-shadow: 0 0 10px #ffc42e; animation: blink .7s ease-in-out infinite; }
+  #status[data-mode="speaking"] .dot { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: blink .45s ease-in-out infinite; }
+  #status[data-mode="listening"] #statusText { color: #8ccaff; }
+  #status[data-mode="thinking"] #statusText { color: #ffd76a; }
+  #status[data-mode="speaking"] #statusText { color: var(--accent); }
+  #live { color: var(--ink); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  #bar { display: flex; align-items: center; gap: 8px; padding: 7px 7px 7px 16px; border-radius: 999px; }
+  #bar input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--ink); font: inherit; font-size: 15px; padding: 8px 0; }
+  #bar input::placeholder { color: var(--muted); }
+  #bar button { all: unset; cursor: pointer; padding: 9px 16px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+  #send { background: var(--accent); color: #04121f; }
+  #reset { color: var(--muted); }
+  #reset:hover { color: var(--ink); }
+  #mic { width: 38px; height: 38px; padding: 0 !important; display: grid !important; place-items: center; color: var(--ink);
+    background: rgba(255,255,255,.07); border: 1px solid var(--edge); box-sizing: border-box; }
+  #mic:hover { background: rgba(255,255,255,.14); }
+  #mic.on { background: #2f8fff; color: #fff; border-color: transparent; animation: micPulse 1.4s ease-out infinite; }
+  #mic:disabled { opacity: .35; cursor: not-allowed; }
+
+  @keyframes micPulse { 0% { box-shadow: 0 0 0 0 rgba(52,160,255,.7); } 100% { box-shadow: 0 0 0 14px rgba(52,160,255,0); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes blink { 0% { opacity: .2 } 50% { opacity: 1 } 100% { opacity: .2 } }
+
+  @media (max-width: 760px) {
+    header { flex-wrap: wrap; padding: 14px 16px; }
+    header .sp { flex-basis: 100%; height: 0; }
+    #agent, #help { left: 16px; right: 16px; width: auto; top: auto; bottom: 130px; max-height: 50vh; }
+    #bar { gap: 4px; padding-left: 12px; }
+    #bar button { padding: 9px 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<!-- HUD: dönen halkalar, durum renkleri ve animasyonlar viewer/hud.js içinde -->
+
+<header>
+  <div class="brand">J.A.R.V.I.S<small id="noteCount">Türkçe sesli asistan</small></div>
+  <div class="sp"></div>
+  <span class="chip" id="modeChip" title="config.json → agent_mode">Ajan: Claude Desktop</span>
+  <span class="chip warn" id="dryChip" hidden title="Otomasyon yalnızca günlüğe yazılıyor">Deneme modu</span>
+  <button class="chip" id="helpBtn" aria-expanded="false">Komutlar</button>
+  <button class="chip" id="memBtn" data-memory-button aria-expanded="false" title="Kayıtlı hafızayı göster">Hafıza</button>
+  <button class="chip gear" id="setBtn" aria-expanded="false" title="Ayarlar" aria-label="Ayarlar">⚙</button>
+  <a class="chip" href="galaxy.html">Bilgi Galaksisi →</a>
+</header>
+
+<aside id="help" class="glass" aria-label="Sesli komutlar">
+  <h3>Öğretmen modu</h3>
+  <p><q>YouTube'da fotosentez aç</q></p>
+  <p><q>YouTube'da ara Osmanlı tarihi</q></p>
+  <p><q>Matematik kitabını aç</q></p>
+  <p><q>Aşağı kaydır</q> · <q>Biraz yukarı kaydır</q> · <q>En aşağı in</q></p>
+  <p><q>Ortaya tıkla</q></p>
+  <h3>Proje mimarı</h3>
+  <p>Fikrinizi anlatın, Jarvis sorular sorar ve hatırlar.</p>
+  <p><q>Bu prompt okey</q> · <q>Projeyi onayla</q> · <q>Bunu koda dök</q></p>
+  <p><q>İptal</q> · <q>Dur</q> — gönderimi durdurur</p>
+  <h3>Hafıza</h3>
+  <p><q>Bunu hatırla: yarın 3. derste sınav var</q></p>
+  <p><q>Sınav notunu sil</q> · <q>Son notu sil</q> · <q>Hafızayı göster</q></p>
+  <p><q>Hafızayı sıfırla</q> → <q>Evet, sıfırla</q></p>
+  <h3>Genel</h3>
+  <p><q>Dur</q> · <q>Bekle</q> · <q>Sus</q> — konuşmayı anında keser</p>
+  <p><q>Yeni sohbet</q> · <q>Mikrofonu kapat</q> · <q>Galaksiyi aç</q></p>
+  <p style="color:var(--muted);margin-top:10px">Acil durdurma: fareyi ekranın bir köşesine götürün.</p>
+</aside>
+
+<section id="settings" class="glass" aria-label="Ayarlar">
+  <button class="x" id="closeSet" aria-label="Kapat" title="Kapat">×</button>
+  <h2>Ayarlar</h2>
+  <p class="intro" id="setIntro">Jarvis'in konuşup düşünebilmesi için bir Gemini API anahtarı gerekli.</p>
+  <form id="setForm" autocomplete="off">
+    <label for="gemKeys">Gemini API anahtarları — her satıra bir tane <span class="badge" id="gemState"></span></label>
+    <div class="keyrow tall">
+      <textarea id="gemKeys" class="masked" spellcheck="false" autocomplete="off" wrap="off" placeholder="AIza…&#10;AIza…"></textarea>
+      <button type="button" class="eye" data-for="gemKeys" title="Göster / gizle" aria-label="Anahtarları göster">👁</button>
+    </div>
+    <p class="hint">Bir anahtarın kotası dolunca Jarvis sıradakine geçer. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> adresinden ücretsiz alabilirsiniz. Satırı silmek o anahtarı kaldırır.</p>
+
+    <label for="groqKey">Groq API anahtarı (dinleme + sohbet beyni) <span class="badge" id="groqState"></span></label>
+    <div class="keyrow">
+      <input id="groqKey" type="password" spellcheck="false" placeholder="gsk_… anahtarınızı yapıştırın">
+      <button type="button" class="eye" data-for="groqKey" title="Göster / gizle" aria-label="Anahtarı göster">👁</button>
+    </div>
+    <p class="hint">Mikrofonla konuşmak ve (sağlayıcı Groq iken) Jarvis'in düşünmesi için gerekli. <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> adresinden ücretsiz alabilirsiniz.</p>
+
+    <label for="hfKey">Hugging Face API anahtarı (sohbet — Gemma 2 9B) <span class="badge" id="hfState"></span></label>
+    <div class="keyrow">
+      <input id="hfKey" type="password" spellcheck="false" placeholder="hf_… anahtarınızı yapıştırın (boş bırakırsanız kayıtlı anahtar kalır)">
+      <button type="button" class="eye" data-for="hfKey" title="Göster / gizle" aria-label="Anahtarı göster">👁</button>
+    </div>
+    <p class="hint">“Sohbet için yapay zekâ” Hugging Face iken gerekli. <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co/settings/tokens</a> adresinden “Inference Providers” izinli ücretsiz bir anahtar alın. Görme ve konuşma (ses) yine Gemini ile çalışır.</p>
+
+    <label for="model">Gemini modeli</label>
+    <input id="model" list="models" spellcheck="false">
+    <datalist id="models"><option value="gemini-3.8-flash"><option value="gemini-flash-latest"><option value="gemini-3.5-flash-lite"><option value="gemini-pro-latest"></datalist>
+    <p class="hint" id="modelHint" hidden style="color:#ffe39a">Bu model Google tarafından kapatıldı; Jarvis otomatik olarak gemini-3.8-flash kullanır. Kalıcı olarak değiştirmek için gemini-3.8-flash yazıp Kaydet'e basın.</p>
+
+    <details>
+      <summary>Gelişmiş: Abacus.AI ve ajan modu</summary>
+      <label for="abaKey">Abacus.AI API anahtarı <span class="badge" id="abaState"></span></label>
+      <div class="keyrow">
+        <input id="abaKey" type="password" spellcheck="false" placeholder="İsteğe bağlı">
+        <button type="button" class="eye" data-for="abaKey" title="Göster / gizle" aria-label="Anahtarı göster">👁</button>
+      </div>
+      <label for="provider">Sohbet için yapay zekâ</label>
+      <select id="provider"><option value="groq">Groq (gpt-oss-120b · ücretsiz, hızlı)</option><option value="huggingface">Hugging Face (Gemma 2 9B · kredi gerekir)</option><option value="gemini">Gemini</option><option value="abacus">Abacus.AI</option></select>
+      <label for="agentMode">“Bunu koda dök” deyince</label>
+      <select id="agentMode"><option value="claude_desktop">Promptu Claude uygulamasına yapıştır</option><option value="abacus_full_auto">Abacus ajanı projeyi kendisi yazsın</option></select>
+      <div class="row" style="margin-top:10px"><button type="button" class="ghost" id="clearAba">Abacus anahtarını sil</button></div>
+    </details>
+
+    <div class="row">
+      <button type="submit" class="primary" id="saveSet">Kaydet</button>
+      <button type="button" class="ghost" id="testSet">Bağlantıyı test et</button>
+    </div>
+    <p class="msg" id="setMsg" role="status"></p>
+    <p class="hint">Anahtarlar yalnızca bu bilgisayardaki config.json dosyasına yazılır ve sadece bu sayfada gösterilir.</p>
+  </form>
+</section>
+
+<section id="agent" class="glass" aria-live="polite">
+  <h2>Ajan modu</h2>
+  <div class="state" id="agentState"></div>
+  <div class="count" id="agentCount" hidden></div>
+  <div class="meta" id="agentMeta"></div>
+  <pre id="agentPrompt"></pre>
+  <ul id="agentLog"></ul>
+  <div class="row">
+    <button id="cancelAgent">İptal et</button>
+    <button id="closeAgent">Gizle</button>
+  </div>
+</section>
+
+<div id="toast" class="glass" role="status"></div>
+
+<section id="talk" aria-live="polite">
+  <div id="you"></div>
+  <div id="reply">Mikrofona tıklayıp konuşun ya da yazın.</div>
+</section>
+
+<div id="chat">
+  <div id="status" data-mode="idle" role="status" aria-live="polite">
+    <span class="dot"></span><span id="statusText">Hazır</span><span id="live"></span>
+  </div>
+  <form id="bar" class="glass" autocomplete="off">
+    <input id="ask" type="text" placeholder="Jarvis'e bir şey söyleyin…" maxlength="1000" aria-label="Jarvis'e yazın">
+    <button type="button" id="mic" aria-label="Mikrofon" aria-pressed="false" title="Konuşarak sor (Groq Whisper, Türkçe)">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
+    </button>
+    <button type="button" id="reset" title="Beyin fırtınası hafızasını sil">Yeni sohbet</button>
+    <button type="submit" id="send">Gönder</button>
+  </form>
+</div>
+
+<script>
+(() => {
+  // ---------------------------------------------------------------- UI helpers
+  const $ = id => document.getElementById(id);
+  const emit = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail }));
+  const post = (url, data) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
+  let toastTimer;
+  function toast(msg, isError, ms = 4000) {
+    const t = $('toast'); t.textContent = msg; t.classList.toggle('error', !!isError); t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+  }
+  function showReply(you, text, opts = {}) {
+    $('you').textContent = you ? 'Siz: ' + you : '';
+    const r = $('reply'); r.textContent = text;
+    r.classList.toggle('error', !!opts.error); r.classList.toggle('thinking', !!opts.thinking);
+  }
+  $('helpBtn').addEventListener('click', () => {
+    const on = $('help').classList.toggle('show'); $('helpBtn').setAttribute('aria-expanded', String(on));
+  });
+
+  // ---------------------------------------------------------------- talk to the brain
+  let seq = 0;
+  async function ask(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    const my = ++seq;
+    showReply(text, 'Düşünüyorum', { thinking: true });
+    emit('app:thinking', true);
+    try {
+      const res = await post('/jarvis', { text });
+      let data;
+      try { data = await res.json(); } catch { data = { error: `Sunucu ${res.status} döndürdü` }; }
+      if (my !== seq) return;
+      if (typeof data.error === 'string') {
+        showReply(text, data.error, { error: true });
+        if (/API anahtar/i.test(data.error)) openSettings();
+        return;
+      }
+      showReply(text, data.reply || '…', { error: data.error === true });   // e.g. "YouTube'a ulaşılamıyor" — still spoken
+      if (data.receipt) toast(describeReceipt(data.receipt), !data.receipt.ok);
+      if (data.agent) renderAgent(data.agent, true);
+      if (data.reply) emit('app:answer', { answer: data.reply });
+      if (data.memory && window.Memory) {                    // "bunu hatırla…", "… notunu sil", "hafızayı sıfırla"
+        if (data.memory.confirm === 'reset') { Memory.open(); Memory.askReset(); } else Memory.changed(data.memory);
+      }
+      pollSoon();
+    } catch {
+      if (my === seq) showReply(text, 'Sunucuya ulaşılamadı. server.py çalışıyor mu?', { error: true });
+    } finally {
+      emit('app:thinking', false);
+    }
+  }
+  // Toast text comes straight from controller.py's receipt: ✓ only if it really happened.
+  function describeReceipt(r) {
+    const name = ({ youtube: 'YouTube', textbook: 'Kitap', scroll: 'Kaydırma', click_center: 'Ortaya tıklama', claude: 'Claude', sequence: 'Çok adımlı görev' })[r.action] || r.action;
+    const mark = !r.ok ? '✗' : r.dry_run ? '◌' : '✓';
+    if (r.action === 'sequence') {
+      const done = (r.completed || []).length, last = (r.completed || []).slice(-1)[0];
+      return `${mark} ${name}: ${done}/${r.total || done} adım${last ? ' · son: ' + last : ''}${r.dry_run ? ' (deneme modu)' : ''}${r.at ? ' · ' + r.at : ''}`;
+    }
+    return `${mark} ${name}${r.detail ? ': ' + r.detail : ''}${r.dry_run && r.ok ? ' (deneme modu)' : ''}${r.at ? ' · ' + r.at : ''}`;
+  }
+  async function resetChat() {
+    seq++; emit('app:reset');
+    try { await post('/jarvis/reset'); } catch {}
+    showReply('', 'Hafıza temizlendi. Yeni bir fikirle başlayalım.');
+  }
+  $('bar').addEventListener('submit', e => { e.preventDefault(); const q = $('ask').value; $('ask').value = ''; ask(q); });
+  $('reset').addEventListener('click', () => { resetChat(); $('ask').focus(); });
+
+  // ---------------------------------------------------------------- agent card + status polling
+  const STATE_TR = { countdown: 'Claude\'a gönderilmek üzere', deploying: 'Claude\'a yapıştırılıyor…', running: 'Abacus ajanı çalışıyor…',
+                     done: 'Tamamlandı', error: 'Hata', cancelled: 'İptal edildi', idle: '' };
+  let agentHidden = false, lastActionFinished = 0, pollTimer = 0, busy = false;
+  function renderAgent(a, reveal) {
+    if (!a || a.state === 'idle') { $('agent').classList.remove('show'); return; }
+    if (reveal) agentHidden = false;
+    $('agent').classList.toggle('show', !agentHidden);
+    const label = STATE_TR[a.state] || a.state;
+    $('agentState').textContent = label + (a.message && !a.message.startsWith(label) ? ' — ' + a.message : '');
+    $('agentCount').hidden = a.state !== 'countdown';
+    $('agentCount').textContent = a.countdown;
+    $('agentMeta').textContent = [a.prompt_file && 'Prompt: ' + a.prompt_file, a.workspace && 'Klasör: ' + a.workspace].filter(Boolean).join(' · ');
+    $('agentPrompt').textContent = a.prompt_preview || '';
+    $('agentLog').replaceChildren(...(a.log || []).slice(-8).map(l => Object.assign(document.createElement('li'), { textContent: l })));
+    $('cancelAgent').hidden = ['done', 'error', 'cancelled'].includes(a.state);
+    busy = ['countdown', 'deploying', 'running'].includes(a.state);
+  }
+  $('cancelAgent').addEventListener('click', async () => { try { renderAgent((await (await post('/agent/cancel')).json()).agent); } catch {} });
+  $('closeAgent').addEventListener('click', () => { agentHidden = true; $('agent').classList.remove('show'); });
+  // "dur" / "bekle" also stop a pending Claude paste or a running agent
+  document.addEventListener('voice:interrupt', () => { if (busy) post('/agent/cancel').then(r => r.json()).then(d => renderAgent(d.agent)).catch(() => {}); });
+
+  async function poll() {
+    clearTimeout(pollTimer);
+    try {
+      const s = await (await fetch('/agent/status')).json();
+      $('modeChip').textContent = s.agent_mode === 'abacus_full_auto' ? 'Ajan: Abacus otomatik' : 'Ajan: Claude Desktop';
+      $('dryChip').hidden = !s.dry_run;
+      renderAgent(s.agent);
+      const act = s.action || {};
+      if (act.finished && act.finished !== lastActionFinished) {
+        if (lastActionFinished && act.error) toast('İşlem başarısız: ' + act.error, true, 7000);
+        lastActionFinished = act.finished;
+      }
+      pollTimer = setTimeout(poll, busy || act.busy ? 700 : 3000);
+    } catch { pollTimer = setTimeout(poll, 5000); }
+  }
+  function pollSoon() { clearTimeout(pollTimer); pollTimer = setTimeout(poll, 300); }
+  poll();
+
+  // ---------------------------------------------------------------- settings (API keys from the UI)
+  const setEl = $('settings'), setMsg = (t, cls) => { $('setMsg').textContent = t; $('setMsg').className = 'msg ' + (cls || ''); };
+  function badge(el, on, hint) { el.textContent = on ? 'Kayıtlı ' + hint : 'Girilmedi'; el.className = 'badge ' + (on ? 'on' : 'off'); }
+  const gemList = () => [...new Set($('gemKeys').value.split(/\r?\n/).map(k => k.trim()).filter(Boolean))];
+  function fillKeys(k) {               // kayıtlı anahtarları düzenlemek için alanlara yaz (konsola asla yazılmaz)
+    $('gemKeys').value = k.gemini_api_keys.join('\n');
+    $('groqKey').value = k.groq_api_key;
+    const n = k.gemini_api_keys.length;
+    $('gemState').textContent = n ? `${n} anahtar · etkin ${k.gemini_active_hint}` : 'Girilmedi';
+    $('gemState').className = 'badge ' + (n ? 'on' : 'off');
+  }
+  async function loadKeys() { const r = await fetch('/settings/keys'); if (r.ok) fillKeys(await r.json()); }
+  function fillSettings(s) {
+    badge($('abaState'), s.abacus_key_set, s.abacus_key_hint);
+    badge($('groqState'), s.groq_key_set, s.groq_key_hint);
+    badge($('hfState'), s.huggingface_key_set, s.huggingface_key_hint);
+    $('provider').value = s.ai_provider; $('agentMode').value = s.agent_mode; $('model').value = s.model;
+    $('abaKey').value = ''; $('hfKey').value = '';
+    $('modelHint').hidden = !/^gemini-(1|2)\./.test(s.model);
+    $('setIntro').textContent = s.ai_provider === 'huggingface' && !s.huggingface_key_set ? 'Sohbet için bir Hugging Face API anahtarı girin.'
+      : s.ai_provider === 'groq' && !s.groq_key_set ? "Jarvis'in konuşup düşünebilmesi için bir Groq API anahtarı gerekli."
+      : !s.gemini_key_set ? "Jarvis'in konuşup düşünebilmesi için bir Gemini API anahtarı gerekli."
+      : !s.groq_key_set ? 'Mikrofonla konuşmak için bir Groq API anahtarı da girin.' : '';
+  }
+  async function loadSettings() { const s = await (await fetch('/settings')).json(); fillSettings(s); return s; }
+  async function openSettings() {
+    setMsg(''); try { await loadSettings(); await loadKeys(); } catch {}
+    setEl.classList.add('show'); $('setBtn').setAttribute('aria-expanded', 'true'); $('gemKeys').focus();
+  }
+  function closeSettings() { $('gemKeys').value = ''; $('groqKey').value = ''; setEl.classList.remove('show'); $('setBtn').setAttribute('aria-expanded', 'false'); }
+  $('setBtn').addEventListener('click', () => setEl.classList.contains('show') ? closeSettings() : openSettings());
+  $('closeSet').addEventListener('click', closeSettings);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
+  setEl.querySelectorAll('.eye').forEach(b => b.addEventListener('click', () => {
+    const i = $(b.dataset.for);
+    if (i.tagName === 'TEXTAREA') i.classList.toggle('masked'); else i.type = i.type === 'password' ? 'text' : 'password';
+  }));
+  async function saveKeys() {           // POST /update-settings: Groq anahtarı + tüm Gemini anahtar listesi
+    const res = await post('/update-settings', { groq_api_key: $('groqKey').value.trim(), gemini_api_keys: gemList() });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Anahtarlar kaydedilemedi');
+    fillKeys(out); return out;
+  }
+  async function saveSettings(extra) {
+    const data = { ai_provider: $('provider').value, agent_mode: $('agentMode').value, model: $('model').value.trim() || 'gemini-3.8-flash', ...extra };
+    if ($('abaKey').value.trim()) data.abacus_api_key = $('abaKey').value.trim();
+    if ($('hfKey').value.trim()) data.huggingface_api_key = $('hfKey').value.trim();
+    const res = await post('/settings', data), out = await res.json();
+    if (!res.ok) throw new Error(out.error || 'Kaydedilemedi');
+    fillSettings(out); poll();
+    return out;
+  }
+  $('setForm').addEventListener('submit', async e => {
+    e.preventDefault(); setMsg('Kaydediliyor…');
+    let before = null;
+    try { before = await (await fetch('/settings/keys')).json(); } catch {}
+    const hadNewKey = !before || before.groq_api_key !== $('groqKey').value.trim()
+      || gemList().some(k => !before.gemini_api_keys.includes(k)) || !!$('hfKey').value.trim();
+    try {
+      await saveKeys();
+      const s = await saveSettings();
+      if (hadNewKey) {
+        setMsg('Kaydedildi, anahtar deneniyor…');
+        const t = await (await post('/settings/test')).json();
+        setMsg(t.ok ? 'Kaydedildi. ' + t.message : 'Kaydedildi ama: ' + t.message, t.ok ? 'ok' : 'bad');
+        if (t.ok) showReply('', "Anahtar hazır. Benimle konuşmaya başlayabilirsiniz.");
+      } else setMsg('Ayarlar kaydedildi.', 'ok');
+    } catch (err) { setMsg(err.message, 'bad'); }
+  });
+  $('testSet').addEventListener('click', async () => {
+    setMsg('Deneniyor…');
+    try {
+      const t = await (await post('/settings/test')).json();
+      setMsg(t.message + ' (Kayıtlı anahtarlar denendi; değişiklik yaptıysanız önce Kaydet\'e basın.)', t.ok ? 'ok' : 'bad');
+    } catch { setMsg('Sunucuya ulaşılamadı.', 'bad'); }
+  });
+  $('clearAba').addEventListener('click', async () => { try { await saveSettings({ clear_abacus: true }); setMsg('Abacus anahtarı silindi.', 'ok'); } catch (e) { setMsg(e.message, 'bad'); } });
+  // İlk açılışta anahtar yoksa ayarları kendiliğinden aç
+  loadSettings().then(s => { if (!s.gemini_key_set) openSettings(); }).catch(() => {});
+
+  window.__app = { ask, resetChat, openSettings };
+})();
+</script>
+<script src="graph-data.js"></script>
+<script src="voice.js"></script>
+<script src="memory.js"></script>
+<script src="hud.js"></script>
+<script>
+  // Gerçek indeks sayısı, graph-data.js'ten okunur (asla elle yazılmaz)
+  (() => {
+    const el = document.getElementById('noteCount');
+    const n = (typeof GRAPH !== 'undefined' && Array.isArray(GRAPH.nodes)) ? GRAPH.nodes.length : null;
+    el.textContent = n == null ? 'Not indeksi bulunamadı' : `${n} not / ders dosyası indekslendi`;
+  })();
+  // Açılış selamı: metin brain.py'deki kişilik bloğundan gelir; ses yalnızca ilk tıklamadan sonra çalar
+  // (playGeminiAudio tıklamaya kadar bekletir; ?mute=1 kontrolü de yalnızca o fonksiyonun içinde).
+  fetch('/boot').then(r => r.json()).then(b => { if (b.greeting) Voice.playGeminiAudio(b.greeting); }).catch(() => {});
+</script>
+<script>
+  // Sayfaya özel ses komutu (çekirdeğe dokunmadan eklenir)
+  VOICE_ROUTES.push({ name: 'galaksi', pattern: /^(?:bilgi )?galaksi(?:yi|sini)? (?:aç|göster)$/, handler: () => { location.href = 'galaxy.html'; } });
+</script>
+</body>
+</html>

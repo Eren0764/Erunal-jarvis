@@ -1,0 +1,13 @@
+# Jarvis — Python 3.10+ ; install with:  pip install -r requirements.txt
+# No local AI models: every AI call goes to the Groq, Hugging Face, Gemini or Abacus.AI cloud APIs.
+flask>=3.0,<4                 # web server (server.py)
+google-genai>=2.34           # official Gemini SDK: text, vision, TTS (brain.py)
+groq>=1.7                    # Groq Whisper Large V3 speech-to-text (ears.py)
+requests>=2.31                # Groq chat (gpt-oss-120b), Hugging Face (Gemma 2) + Abacus.AI REST calls
+pyautogui>=0.9.54             # desktop control: mouse, keyboard, screenshots (controller.py); FAILSAFE = mouse to a corner
+pyperclip>=1.9                # unicode-safe typing via clipboard (Linux also needs xclip or xsel)
+# Optional: abacusai          # official Abacus SDK — not required, brain.py uses the REST API
+SpeechRecognition>=3.10       # daemon.py: microphone energy detection only (no local recognizer is used)
+sounddevice>=0.4              # daemon.py: microphone input without PyAudio (wheel on Windows; libportaudio2 on Linux)
+pystray>=0.19; sys_platform == "win32"   # daemon.py --tray: system tray icon on Windows 11
+Pillow>=10.1                  # screenshots for the Gemini vision locator (controller.capture_screen); Linux X11 needs XCB support
